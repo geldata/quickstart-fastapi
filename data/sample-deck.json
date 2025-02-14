@@ -1,0 +1,46 @@
+{
+    "name": "Learning EdgeQL",
+    "description": "A progressive guide to learning EdgeQL and SDL from basics to advanced concepts",
+    "cards": [
+        {
+            "front": "What data structure is used as a container for all values in EdgeQL?",
+            "back": "Sets. Even single values are treated as sets with one element (singletons)."
+        },
+        {
+            "front": "Can EdgeQL sets contain the same value multiple times?",
+            "back": "Yes, EdgeQL sets are mutli-sets."
+        },
+        {
+            "front": "How does EdgeQL represent no value?",
+            "back": "A typed empty set."
+        },
+        {
+            "front": "What are the string scalar types in EdgeQL?",
+            "back": "str"
+        },
+        {
+            "front": "What are the numeric scalar types in EdgeQL?",
+            "back": "int16, int32, int64, float32, float64, bigint, decimal"
+        },
+        {
+            "front": "By default, are properties of an Object type required?",
+            "back": "No, unless marked as required, properties are optional."
+        },
+        {
+            "front": "How do you define a one-to-one relationship between two object types?",
+            "back": "You define a single, exclusive link from one of the types to the other."
+        },
+        {
+            "front": "How do you define a one-to-many relationship between two object types?",
+            "back": "You define a multi, exclusive link from the one-typed object to the many-typed object."
+        },
+        {
+            "front": "How do you define a many-to-one relationship between two object types?",
+            "back": "You define a single, non-exclusive link from the many-type to the one-type."
+        },
+        {
+            "front": "How do you define a many-to-many relationship between two object types?",
+            "back": "You define a multi, non-exclusive link from one of the types to the other."
+        }
+    ]
+}
