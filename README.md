@@ -15,7 +15,13 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-3. Run the development server:
+3. Initialize the Gel database:
+
+```bash
+gel project init
+```
+
+4. Run the development server:
 ```bash
 uvicorn main:app --reload
 ```
@@ -69,7 +75,7 @@ curl -X POST http://localhost:8000/decks/{deck_id}/cards \
 
 ### Delete a card from a deck
 ```bash
-curl -X DELETE http://localhost:8000/decks/{deck_id}/cards/{card_id}
+curl -X DELETE http://localhost:8000/cards/{card_id}
 ```
 
-Note: Replace `{deck_id}` and `{card_id}` with actual IDs in the above commands. 
+Note: Replace `{card_id}` with actual IDs in the above commands. 

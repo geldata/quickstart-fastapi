@@ -1,103 +1,213 @@
+import uuid
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-import uuid
-import json
-from pathlib import Path
+from edgedb import create_async_client
 
 app = FastAPI(title="Flashcards API")
 
-DATA_DIR = Path(__file__).parent / "data"
-DECKS_FILE = DATA_DIR / "decks.json"
+client = create_async_client()
 
-DATA_DIR.mkdir(exist_ok=True)
-if not DECKS_FILE.exists():
-    DECKS_FILE.write_text("[]")
 
 # Pydantic models
 class CardBase(BaseModel):
     front: str
     back: str
+    order: Optional[int] = None
+
 
 class Card(CardBase):
-    id: str
+    id: uuid.UUID
+
 
 class DeckBase(BaseModel):
     name: str
     description: Optional[str] = None
 
+
 class DeckCreate(DeckBase):
     cards: List[CardBase]
 
+
 class Deck(DeckBase):
-    id: str
+    id: uuid.UUID
     cards: List[Card]
 
-def read_decks() -> List[Deck]:
-    content = DECKS_FILE.read_text()
-    data = json.loads(content)
-    return [Deck(**deck) for deck in data]
-
-def write_decks(decks: List[Deck]) -> None:
-    data = [deck.model_dump() for deck in decks]
-    DECKS_FILE.write_text(json.dumps(data, indent=2))
 
 @app.get("/decks", response_model=List[Deck])
 async def get_decks():
-    return read_decks()
+    decks = await client.query("""
+       SELECT Deck {
+           id,
+           name,
+           description,
+           cards := (
+               SELECT .cards {
+                   id,
+                   front,
+                   back
+               }
+               ORDER BY .order
+           )
+       }
+   """)
+    return decks
+
 
 @app.get("/decks/{deck_id}", response_model=Deck)
 async def get_deck(deck_id: str):
-    decks = read_decks()
-    deck = next((deck for deck in decks if deck.id == deck_id), None)
+    deck = await client.query_single(
+        """
+        SELECT Deck {
+            id,
+            name,
+            description,
+            cards := (
+                SELECT .cards {
+                    id,
+                    front,
+                    back,
+                    order
+                }
+                ORDER BY .order
+            )
+        }
+        FILTER .id = <uuid>$id
+    """,
+        id=deck_id,
+    )
+
     if not deck:
         raise HTTPException(status_code=404, detail=f"Deck with id {deck_id} not found")
     return deck
 
+
 @app.post("/decks/import", response_model=Deck)
 async def import_deck(deck: DeckCreate):
-    decks = read_decks()
-    new_deck = Deck(
-        id=str(uuid.uuid4()),
+    cards_data = [(c.front, c.back, i) for i, c in enumerate(deck.cards)]
+
+    new_deck = await client.query_single(
+        """
+        select (
+            with
+                cards := <array<tuple<str, str, int64>>>$cards_data
+            insert Deck {
+                name := <str>$name,
+                description := <optional str>$description,
+                cards := (
+                    for card in array_unpack(cards)
+                    union (
+                        insert Card {
+                            front := card.0,
+                            back := card.1,
+                            order := card.2
+                        }
+                    )
+                )
+            }
+        ) { ** }
+        """,
         name=deck.name,
         description=deck.description,
-        cards=[Card(id=str(uuid.uuid4()), **card.model_dump()) for card in deck.cards]
+        cards_data=cards_data,
     )
-    decks.append(new_deck)
-    write_decks(decks)
+
     return new_deck
+
 
 @app.put("/decks/{deck_id}", response_model=Deck)
 async def update_deck(deck_id: str, deck_update: DeckBase):
-    decks = read_decks()
-    deck = next((deck for deck in decks if deck.id == deck_id), None)
-    if not deck:
-        raise HTTPException(status_code=404, detail="Deck not found")
-    
-    deck.name = deck_update.name
-    deck.description = deck_update.description
-    write_decks(decks)
-    return deck
+    # Build update sets based on provided fields
+    sets = []
+    params = {"id": deck_id}
 
-@app.post("/decks/{deck_id}/cards", response_model=Card)
+    if deck_update.name is not None:
+        sets.append("name := <str>$name")
+        params["name"] = deck_update.name
+
+    if deck_update.description is not None:
+        sets.append("description := <optional str>$description")
+        params["description"] = deck_update.description
+
+    if not sets:
+        return await get_deck(deck_id)
+
+    query = """
+        select(
+            update Deck
+            filter .id = <uuid>$id
+            set { %s }
+        ) { ** }
+    """ % ", ".join(sets)
+
+    updated_deck = await client.query_single(query, **params)
+
+    if not updated_deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+
+    return updated_deck
+
+
+@app.post("/decks/{deck_id}/cards", response_model=Deck)
 async def add_card(deck_id: str, card: CardBase):
-    decks = read_decks()
-    deck = next((deck for deck in decks if deck.id == deck_id), None)
-    if not deck:
-        raise HTTPException(status_code=404, detail="Deck not found")
-    
-    new_card = Card(id=str(uuid.uuid4()), **card.model_dump())
-    deck.cards.append(new_card)
-    write_decks(decks)
-    return new_card
+    # Get max order and increment
+    deck = await client.query_single(
+        """
+        select Deck {
+            max_order := max(.cards.order)
+        }
+        filter .id = <uuid>$id
+        """,
+        id=deck_id,
+    )
 
-@app.delete("/decks/{deck_id}/cards/{card_id}")
-async def delete_card(deck_id: str, card_id: str):
-    decks = read_decks()
-    deck = next((deck for deck in decks if deck.id == deck_id), None)
-    if not deck:
+    new_order = (deck.max_order or -1) + 1
+
+    new_card = await client.query_single(
+        """
+        insert Card {
+            front := <str>$front,
+            back := <str>$back,
+            order := <int64>$order,
+        }
+        """,
+        front=card.front,
+        back=card.back,
+        order=new_order,
+    )
+
+    new_deck = await client.query_single(
+        """
+        select(
+            update Deck
+            filter .id = <uuid>$id
+            set {
+                cards += (select Card { id, front, back } filter .id = <uuid>$card_id)
+            }
+        ) { ** }
+        """,
+        id=deck_id,
+        card_id=new_card.id,
+    )
+
+    if not new_card:
         raise HTTPException(status_code=404, detail="Deck not found")
-    
-    deck.cards = [card for card in deck.cards if card.id != card_id]
-    write_decks(decks)
-    return {"message": "Card deleted"} 
+
+    return new_deck
+
+
+@app.delete("/cards/{card_id}", response_model=str)
+async def delete_card(card_id: str):
+    deleted = await client.query(
+        """
+        delete Card
+        filter
+            .id = <uuid>$card_id
+        """,
+        card_id=card_id,
+    )
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    return "Card deleted"
