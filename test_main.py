@@ -142,8 +142,35 @@ class TestGetDeck:
         assert "not found" in response.json()["detail"]
 
 
-class TestUpdateDeck:
+class TestReplaceDeck:
     """Test the PUT /decks/{deck_id} endpoint."""
+
+    def test_replace_deck_success(self, client, created_deck):
+        """Test successfully replacing a deck."""
+        deck_id = created_deck["id"]
+        update_data = {"name": "New Name", "description": "New Description"}
+
+        response = client.put(f"/decks/{deck_id}", json=update_data)
+
+        assert response.status_code == 200
+        deck = response.json()
+        assert deck["name"] == "New Name"
+        assert deck["description"] == "New Description"
+        # Cards should remain unchanged
+        assert len(deck["cards"]) == 3
+
+    def test_replace_nonexistent_deck(self, client, temp_data_dir):
+        """Test replacing a deck that doesn't exist."""
+        fake_id = str(uuid.uuid4())
+        update_data = {"name": "New Name", "description": "New Description"}
+
+        response = client.put(f"/decks/{fake_id}", json=update_data)
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+
+class TestUpdateDeck:
+    """Test the PATCH /decks/{deck_id} endpoint."""
 
     def test_update_deck_success(self, client, created_deck):
         """Test successfully updating a deck."""
@@ -153,7 +180,7 @@ class TestUpdateDeck:
             "description": "Updated description for Spanish words",
         }
 
-        response = client.put(f"/decks/{deck_id}", json=update_data)
+        response = client.patch(f"/decks/{deck_id}", json=update_data)
 
         assert response.status_code == 200
         deck = response.json()
@@ -166,21 +193,21 @@ class TestUpdateDeck:
     def test_update_deck_name_only(self, client, created_deck):
         """Test updating only the deck name."""
         deck_id = created_deck["id"]
-        update_data = {"name": "New Name", "description": None}
+        update_data = {"name": "New Name"}
 
-        response = client.put(f"/decks/{deck_id}", json=update_data)
+        response = client.patch(f"/decks/{deck_id}", json=update_data)
 
         assert response.status_code == 200
         deck = response.json()
         assert deck["name"] == "New Name"
-        assert deck["description"] is None
+        assert deck["description"] == "Basic Spanish words and phrases"
 
     def test_update_nonexistent_deck(self, client, temp_data_dir):
         """Test updating a deck that doesn't exist."""
         fake_id = str(uuid.uuid4())
         update_data = {"name": "New Name", "description": "New Description"}
 
-        response = client.put(f"/decks/{fake_id}", json=update_data)
+        response = client.patch(f"/decks/{fake_id}", json=update_data)
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]

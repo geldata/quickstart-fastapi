@@ -46,7 +46,7 @@ def read_decks() -> list[Deck]:
 
 
 def write_decks(decks: list[Deck]) -> None:
-    data = [deck.model_dump(mode='json') for deck in decks]
+    data = [deck.model_dump(mode="json") for deck in decks]
     DECKS_FILE.write_text(json.dumps(data, indent=2))
 
 
@@ -79,7 +79,7 @@ async def import_deck(deck: DeckCreate):
 
 
 @app.put("/decks/{deck_id}")
-async def update_deck(deck_id: uuid.UUID, deck_update: DeckBase):
+async def replace_deck(deck_id: uuid.UUID, deck_update: DeckBase):
     decks = read_decks()
     deck = next((deck for deck in decks if deck.id == deck_id), None)
     if not deck:
@@ -87,6 +87,21 @@ async def update_deck(deck_id: uuid.UUID, deck_update: DeckBase):
 
     deck.name = deck_update.name
     deck.description = deck_update.description
+    write_decks(decks)
+    return deck
+
+
+@app.patch("/decks/{deck_id}")
+async def update_deck(deck_id: uuid.UUID, deck_update: DeckBase):
+    decks = read_decks()
+    deck = next((deck for deck in decks if deck.id == deck_id), None)
+    if not deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+
+    if deck_update.name:
+        deck.name = deck_update.name
+    if deck_update.description:
+        deck.description = deck_update.description
     write_decks(decks)
     return deck
 
