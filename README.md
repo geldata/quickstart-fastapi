@@ -4,20 +4,20 @@ A FastAPI backend for the Flashcards application.
 
 ## Getting Started
 
-1. Create a virtual environment:
+We will use `uv` to create a virtual environment, and install our dependencies.
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+uv venv
+uv sync
 ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+You can then run the FastAPI dev server
 
-3. Run the development server:
 ```bash
-uvicorn main:app --reload
+uv run fastapi dev
+# or with your venv
+source .venv/bin/activate
+fastapi dev
 ```
 
 The API will be available at http://localhost:8000
