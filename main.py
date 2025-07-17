@@ -46,7 +46,7 @@ def read_decks() -> list[Deck]:
 
 
 def write_decks(decks: list[Deck]) -> None:
-    data = [deck.model_dump() for deck in decks]
+    data = [deck.model_dump(mode='json') for deck in decks]
     DECKS_FILE.write_text(json.dumps(data, indent=2))
 
 
