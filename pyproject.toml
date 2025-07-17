@@ -9,6 +9,8 @@ dependencies = [
     "gel",
     "pydantic>=2.11.7",
     "uvicorn>=0.35.0",
+    "pytest>=7.0.0",
+    "httpx>=0.24.0",
 ]
 
 [tool.uv.sources]
